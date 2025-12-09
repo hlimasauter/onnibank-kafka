@@ -11,7 +11,7 @@ print("Inicializando exporter Kafka -> Prometheus...")
 # ---------------------------
 operation_counts = defaultdict(int)
 
-brokers = ["10.100.7.51:9092", "10.100.7.61:9092", "10.100.6.99:9092"]
+brokers = ["ip-10-100-7-51.sa-east-1.compute.internal:9092", "ip-10-100-7-61.sa-east-1.compute.internal:9092", "ip-10-100-6-99.sa-east-1.compute.internal:9092"]
 
 operation_gauge = Gauge(
     'kafka_operations',
