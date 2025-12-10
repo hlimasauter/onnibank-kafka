@@ -1,0 +1,35 @@
+replicaCount: 1
+
+image:
+  repository: heltonl/onnibank-kafka-exporter
+  pullPolicy: IfNotPresent
+  tag: "v1"
+
+resources:
+  requests:
+    cpu: "50m"
+    memory: "64Mi"
+  limits:
+    cpu: "200m"
+    memory: "256Mi"
+
+hostAliases:
+  - ip: "10.100.7.51"
+    hostnames:
+      - "ip-10-100-7-51.sa-east-1.compute.internal"
+  - ip: "10.100.7.61"
+    hostnames:
+      - "ip-10-100-7-61.sa-east-1.compute.internal"
+  - ip: "10.100.6.99"
+    hostnames:
+      - "ip-10-100-6-99.sa-east-1.compute.internal"
+
+# Configuração Atualizada do Service
+service:
+  type: ClusterIP
+  port: 8000
+  targetPort: 8000
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8000"
+    prometheus.io/path: "/metrics"
