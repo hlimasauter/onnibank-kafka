@@ -1,0 +1,53 @@
+name: Deploy to Oracle Kubernetes (OKE)
+
+on:
+  push:
+    branches:
+      - main 
+
+jobs:
+  deploy-helm:
+    runs-on: ubuntu-latest
+    
+    steps:
+    # 1. Baixa o código do seu repositório
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    # 2. Configura a CLI da Oracle (Autenticação)
+    - name: Configure OCI CLI
+      uses: oracle-actions/setup-oci-cli@v1.2.1
+      with:
+        user: ${{ secrets.OCI_USER_OCID }}
+        fingerprint: ${{ secrets.OCI_FINGERPRINT }}
+        tenancy: ${{ secrets.OCI_TENANCY_OCID }}
+        region: ${{ secrets.OCI_REGION }}
+        api_key: ${{ secrets.OCI_API_KEY }}
+
+    # 3. Gera o arquivo kubeconfig para acessar o cluster
+    - name: Setup Kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        oci ce cluster create-kubeconfig \
+          --cluster-id ${{ secrets.OKE_CLUSTER_OCID }} \
+          --file $HOME/.kube/config \
+          --region ${{ secrets.OCI_REGION }} \
+          --token-version 2.0.0
+        
+        # Define a variável de ambiente para o Helm saber onde está a config
+        echo "KUBECONFIG=$HOME/.kube/config" >> $GITHUB_ENV
+
+    # 4. Instala a ferramenta Helm no runner do GitHub
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: v3.12.0 
+
+    # 5. Roda o comando de Deploy
+    - name: Deploy with Helm
+      run: |
+        ./kafka-exporter-chart
+        helm upgrade --install kafka-exporter ./kafka-exporter-chart \
+          --namespace prometheus \
+          --create-namespace \
+          --wait
