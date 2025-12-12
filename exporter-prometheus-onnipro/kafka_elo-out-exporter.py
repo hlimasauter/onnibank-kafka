@@ -11,7 +11,11 @@ print("Inicializando exporter Kafka -> Prometheus...")
 # ---------------------------
 operation_counts = defaultdict(int)
 
-brokers = ["ip-10-100-7-51.sa-east-1.compute.internal:9092", "ip-10-100-7-61.sa-east-1.compute.internal:9092", "ip-10-100-6-99.sa-east-1.compute.internal:9092"]
+brokers = [
+    "ip-10-100-7-51.sa-east-1.compute.internal:9092",
+    "ip-10-100-7-61.sa-east-1.compute.internal:9092",
+    "ip-10-100-6-99.sa-east-1.compute.internal:9092"
+]
 
 operation_gauge = Gauge(
     'kafka_operations',
@@ -107,7 +111,7 @@ operation_share_gauge = Gauge(
 )
 
 # ---------------------------
-# Métrica 7: desfazimentos (transactionType = "0400")
+# Métrica 7: desfazimentos (transactionType = "0420")
 # ---------------------------
 # reversal_counts[operation][result] -> int
 # onde result ∈ {"all", "approved", "denied"}
@@ -116,7 +120,21 @@ reversal_counts = defaultdict(lambda: defaultdict(int))
 
 reversal_operation_gauge = Gauge(
     'kafka_reversal_operations',
-    'Contagem de desfazimentos (transactionType=0400) por minuto, por operação e resultado',
+    'Contagem de desfazimentos (transactionType=0420) por minuto, por operação e resultado',
+    ['operation', 'result']
+)
+
+# ---------------------------
+# Métrica 8: cancelamentos (transactionType = "0400")
+# ---------------------------
+# cancellation_counts[operation][result] -> int
+# onde result ∈ {"all", "approved", "denied"}
+
+cancellation_counts = defaultdict(lambda: defaultdict(int))
+
+cancellation_operation_gauge = Gauge(
+    'kafka_cancellation_operations',
+    'Contagem de cancelamentos (transactionType=0400) por minuto, por operação e resultado',
     ['operation', 'result']
 )
 
@@ -268,7 +286,7 @@ try:
                                 share = 0.0
                             operation_share_gauge.labels(operation=op).set(share)
 
-                        # 5) Desfazimentos: exporta kafka_reversal_operations
+                        # 5) Desfazimentos: exporta kafka_reversal_operations (0420)
                         for op in expected_operations + ["TOTAL"]:
                             for result in ["all", "approved", "denied"]:
                                 count = reversal_counts.get(op, {}).get(result, 0)
@@ -277,7 +295,16 @@ try:
                                     result=result
                                 ).set(count)
 
-                        # 6) Reseta acumuladores para o próximo minuto
+                        # 6) Cancelamentos: exporta kafka_cancellation_operations (0400)
+                        for op in expected_operations + ["TOTAL"]:
+                            for result in ["all", "approved", "denied"]:
+                                count = cancellation_counts.get(op, {}).get(result, 0)
+                                cancellation_operation_gauge.labels(
+                                    operation=op,
+                                    result=result
+                                ).set(count)
+
+                        # 7) Reseta acumuladores para o próximo minuto
                         operation_counts.clear()
                         operation_latency_sums.clear()
                         operation_latency_counts.clear()
@@ -285,6 +312,7 @@ try:
                         denied_counts.clear()
                         internalcode_counts.clear()
                         reversal_counts.clear()
+                        cancellation_counts.clear()
 
                         total_operation_count = 0
                         total_latency_sum = 0.0
@@ -329,8 +357,21 @@ try:
                     denied_counts[operation] += 1
                     total_denied_count += 1
 
-                # Desfazimentos (transactionType = "0400")
+                # Cancelamentos (transactionType = "0400")
                 if transaction_type == "0400":
+                    # sempre conta em "all"
+                    cancellation_counts[operation]["all"] += 1
+                    cancellation_counts["TOTAL"]["all"] += 1
+
+                    if is_approved:
+                        cancellation_counts[operation]["approved"] += 1
+                        cancellation_counts["TOTAL"]["approved"] += 1
+                    else:
+                        cancellation_counts[operation]["denied"] += 1
+                        cancellation_counts["TOTAL"]["denied"] += 1
+
+                # Desfazimentos (transactionType = "0420")
+                if transaction_type == "0420":
                     # sempre conta em "all"
                     reversal_counts[operation]["all"] += 1
                     reversal_counts["TOTAL"]["all"] += 1
